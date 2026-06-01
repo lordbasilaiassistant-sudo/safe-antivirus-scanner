@@ -1,0 +1,13 @@
+{
+  "name": "example-pack",
+  "_comment": "Demonstrates the JSON signature format. Contains only the harmless EICAR fingerprint, never a live sample. Copy this file to add your own signatures.",
+  "patterns": [],
+  "hashes": [
+    {
+      "name": "EICAR-Test-File (db example)",
+      "sha256": "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f",
+      "description": "Example DB entry: the harmless EICAR test file hash.",
+      "severity": "test"
+    }
+  ]
+}

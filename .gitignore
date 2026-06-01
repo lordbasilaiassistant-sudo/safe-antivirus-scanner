@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+dist/
+*.spec.bak
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller working files
+*.manifest
+
+# Quarantined files must NEVER be committed (they may be real malware)
+Antivirus_Quarantine/
+quarantine/
+
+# Local samples directory -- NEVER commit live malware samples
+samples/
+*.malware
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
