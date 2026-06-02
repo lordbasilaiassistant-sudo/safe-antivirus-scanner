@@ -19,13 +19,15 @@ from pathlib import Path
 from . import __version__
 from .models import Detection, ScanResult
 from .scanner import Scanner
+from . import targets
 
 
 def _print_report(result: ScanResult, target: str) -> None:
     print(f"\n  Scan of: {target}")
     print(f"  Files scanned: {result.files_scanned:,}   "
           f"Bytes: {result.bytes_scanned:,}   "
-          f"Skipped: {len(result.skipped):,}")
+          f"Skipped: {len(result.skipped):,}   "
+          f"Trusted (signed, cleared): {result.trusted_suppressed:,}")
 
     if not result.detections:
         print("\n  [OK] No signatures matched, no heuristics fired. Nothing flagged.\n")
@@ -102,8 +104,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"antivirus {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    scan = sub.add_parser("scan", help="Scan a file or directory (read-only).")
-    scan.add_argument("target", help="File or directory to scan.")
+    scan = sub.add_parser("scan", help="Scan a file, directory, or a built-in profile.")
+    scan.add_argument("target", nargs="?", default=None,
+                      help="File or directory to scan. Omit when using --profile.")
+    scan.add_argument("--profile", choices=[targets.QUICK, targets.FULL], default=None,
+                      help="Scan a built-in set of locations instead of a path. "
+                           "'quick' = high-risk areas + autoruns; 'full' = all fixed drives.")
     scan.add_argument("--max-file-mb", type=float, default=None,
                       help="Skip files larger than this many MiB.")
     scan.add_argument("--no-heuristics", action="store_true",
@@ -118,11 +124,22 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     if args.command == "scan":
+        if not args.profile and not args.target:
+            print("  Provide a path to scan, or use --profile quick|full.")
+            return 2
         max_bytes = int(args.max_file_mb * 1024 * 1024) if args.max_file_mb else None
         scanner = Scanner(max_file_bytes=max_bytes,
                           enable_heuristics=not args.no_heuristics)
-        result = scanner.scan_path(args.target)
-        _print_report(result, args.target)
+        if args.profile:
+            roots = targets.resolve_profile(args.profile)
+            label = f"{args.profile} profile ({len(roots)} locations)"
+            print(f"  {args.profile.title()} scan: {len(roots)} locations "
+                  f"(this can take a while)...")
+            result = scanner.scan_roots(roots)
+        else:
+            label = args.target
+            result = scanner.scan_path(args.target)
+        _print_report(result, label)
 
         if args.quarantine and result.known_bad:
             _quarantine(result, Path(args.quarantine))

@@ -89,6 +89,7 @@ def analyze_double_extension(ctx: FileContext) -> list[Detection]:
             severity=SUSPICIOUS,
             description="Filename hides an executable behind a harmless-looking extension.",
             evidence=f"name ends in '{prev}{final}'",
+            score=40,
         )]
     return []
 
@@ -111,6 +112,7 @@ def analyze_pe(ctx: FileContext) -> list[Detection]:
             description="Executable has very high entropy -- consistent with packing/encryption "
                         "(also true of some legitimate installers).",
             evidence=f"PE, entropy {ctx.entropy:.2f}/8.0",
+            score=25,
         ))
     return findings
 
@@ -131,6 +133,7 @@ def analyze_script(ctx: FileContext) -> list[Detection]:
             severity=SUSPICIOUS,
             description="Script combines multiple obfuscation / remote-execution markers.",
             evidence=", ".join(sorted(set(hits))[:5]),
+            score=40,
         )]
     return []
 
@@ -173,6 +176,7 @@ def analyze_office_macros(ctx: FileContext) -> list[Detection]:
             description="Office document contains macros. Macros are frequently used to "
                         "deliver malware; only enable them from sources you trust.",
             evidence=evidence,
+            score=30,
         )]
     return []
 

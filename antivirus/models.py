@@ -33,6 +33,7 @@ class Detection:
     severity: str         # one of the constants above
     description: str      # human-readable reason
     evidence: str = ""    # optional concrete detail (e.g. "entropy 7.97, .exe")
+    score: int = 0        # heuristic confidence contribution (0 for hard signatures)
 
     def is_test(self) -> bool:
         return self.severity == TEST
@@ -60,6 +61,7 @@ class ScanResult:
     files_scanned: int = 0
     bytes_scanned: int = 0
     skipped: list[tuple] = field(default_factory=list)  # (path, reason)
+    trusted_suppressed: int = 0  # findings cleared by a valid code signature
 
     @property
     def known_bad(self) -> list[Detection]:

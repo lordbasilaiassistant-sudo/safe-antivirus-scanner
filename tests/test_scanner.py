@@ -65,9 +65,14 @@ class TestDetection(TempDirTest):
 
 
 class TestHeuristics(TempDirTest):
+    # use_trust=False keeps these deterministic and PowerShell-free; trust
+    # behaviour is covered separately in test_scoring.py.
+    def scan(self):
+        return Scanner(use_trust=False).scan_path(self.root)
+
     def test_double_extension_flagged(self):
         self.write("invoice.pdf.exe", b"MZ" + b"\x00" * 500)
-        result = Scanner().scan_path(self.root)
+        result = self.scan()
         self.assertIn("Heuristic.DeceptiveDoubleExtension",
                       {d.signature for d in result.suspicious})
 
@@ -75,7 +80,7 @@ class TestHeuristics(TempDirTest):
         payload = (b"$x = [System.Convert]::FromBase64String('"
                    + b"QQ" * 300 + b"');\nIEX $x\n")
         self.write("dropper.ps1", payload)
-        result = Scanner().scan_path(self.root)
+        result = self.scan()
         self.assertIn("Heuristic.Obfuscated.Script",
                       {d.signature for d in result.suspicious})
 
@@ -83,14 +88,14 @@ class TestHeuristics(TempDirTest):
         # A PE-looking file full of (deterministic) high-entropy bytes.
         body = bytes((i * 73 + 31) % 256 for i in range(20000))
         self.write("packed.exe", b"MZ" + b"PE\x00\x00" + body)
-        result = Scanner().scan_path(self.root)
+        result = self.scan()
         sigs = {d.signature for d in result.suspicious}
         self.assertIn("Heuristic.Packed.PE", sigs)
 
     def test_plain_text_is_not_suspicious(self):
         self.write("readme.txt", b"This is a normal text file.\n" * 200)
         self.write("photo.jpgnote", b"not really anything special")
-        result = Scanner().scan_path(self.root)
+        result = self.scan()
         self.assertEqual(result.suspicious, [])
 
     def test_heuristics_can_be_disabled(self):

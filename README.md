@@ -15,25 +15,56 @@ It comes as a one-file Windows app (`AntivirusScanner.exe`) and a CLI.
 
 ## What it does
 
+- **One-click scan profiles — no folder picking needed:**
+  - **Quick Scan** — the places malware actually lands and hides: temp dirs,
+    Downloads, Desktop, the AppData trees, Startup folders, and every program
+    that auto-runs (registry Run keys, Startup, scheduled tasks).
+  - **Full Scan** — every fixed drive.
+  - **Custom** — pick a folder (the classic behaviour).
 - **Signature detection** — known-bad byte patterns and full-file SHA-256 hashes.
-  Ships with the industry-standard, harmless **EICAR** test signature so you can
-  prove it works.
-- **Heuristics** (review-only signals, not verdicts):
-  - high **entropy** in an executable → possible packing/encryption
-  - Office documents containing **VBA macros**
-  - **scripts** combining obfuscation / download-and-execute markers
-  - **deceptive double extensions** like `invoice.pdf.exe`
+  Ships with the industry-standard, harmless **EICAR** test signature.
+- **Behavioural analysis of executables** (via `pefile`) — reads the import table
+  and flags capability combinations that characterise malware: **process
+  injection**, **keylogging**, **anti-analysis/sandbox-evasion**, credential
+  access, and known **packer** sections.
+- **Code-signing trust** — a file validly signed by a trusted publisher has its
+  heuristic suspicions cleared. This is what stops legitimate installers (Opera,
+  Claude, RuneLite, …) from being false-flagged just for being compressed.
+- **Confidence scoring** — weak signals don't flag on their own; findings only
+  surface when combined signals (and context, like an *unsigned* binary sitting
+  in a temp folder) cross a threshold. Cuts false positives.
+- **Heuristics** — high **entropy** packing, Office **VBA macros**, obfuscated
+  **scripts**, **deceptive double extensions** like `invoice.pdf.exe`.
 - **Review-first results** in three tiers: `THREAT` (known-bad) · `REVIEW`
   (heuristic, unconfirmed) · `TEST` (harmless EICAR).
 - **Quarantine** that is opt-in, confirmed, reversible (move, not delete), and
   limited to known-bad matches.
 
+## Accuracy & honest limitations
+
+No scanner detects *every* virus — not this one, and not the big commercial names
+either. Here's the real picture so you can trust the results:
+
+- **Strong at:** known signatures, malware that betrays itself through its
+  imports/behaviour (injectors, keyloggers, packers), persistence locations
+  (autoruns), and obvious social-engineering tricks. The code-signing + scoring
+  model keeps false positives low.
+- **Weak at / does not do:** brand-new zero-days with no signature and benign-
+  looking imports; fileless / in-memory-only malware (it scans files, not live
+  process memory); and anything needing the cloud-reputation and behavioural-
+  telemetry networks that vendors like Malwarebytes/Defender run. It has no live
+  malware-signature feed bundled (you can add hash/pattern packs — see the DB).
+- **Heuristic `REVIEW` flags are leads, not verdicts.** An unsigned power-user
+  tool (e.g. a password recovery utility) can legitimately trip them.
+
+Treat it as a sharp **on-demand triage scanner** that runs alongside Defender —
+not a replacement for it.
+
 ## What it is NOT
 
-Not a real-time/on-access antivirus and **not** a replacement for Microsoft
-Defender. It installs no driver and runs nothing in the background — that's the
-class of software that can break a PC, and it deliberately avoids it. Treat it as
-an **on-demand triage scanner**.
+Not a real-time/on-access antivirus. It installs no driver and runs nothing in
+the background — that's the class of software that can break a PC, and it
+deliberately avoids it.
 
 ---
 
@@ -47,10 +78,19 @@ release). Pick a folder → **Scan** → review results → optionally **Quarant
 ### From source (Python 3.11+)
 
 ```powershell
+# Optional but recommended for behavioural analysis + signature trust:
+py -m pip install pefile pywin32
+
 # GUI
 py -m antivirus
 
-# CLI -- scan a folder, read-only, just report
+# CLI -- one-click Quick scan (high-risk locations + autoruns), read-only
+py -m antivirus.cli scan --profile quick
+
+# CLI -- Full scan (all fixed drives)
+py -m antivirus.cli scan --profile full
+
+# CLI -- scan a specific folder
 py -m antivirus.cli scan "$env:USERPROFILE\Downloads"
 
 # CLI -- known signatures only, no heuristics
@@ -111,7 +151,12 @@ skips).
 ```
 antivirus/
   scanner.py      read-only scanning engine (streaming, entropy, pipeline)
-  analyzers.py    heuristic analyzers (PE / script / macro / double-extension)
+  targets.py      Quick/Full/Custom scan-profile location resolver
+  analyzers.py    cheap heuristics (entropy / script / macro / double-extension)
+  pe_analyze.py   deep PE behaviour analysis via pefile (imports/sections)
+  trust.py        Authenticode code-signing verification (FP suppression)
+  scoring.py      confidence scoring: combine signals, weigh against trust
+  autoruns.py     read-only enumeration of Run keys / Startup / scheduled tasks
   signatures.py   built-in EICAR + JSON signature DB loader
   models.py       data models + severity vocabulary
   entropy.py      Shannon entropy

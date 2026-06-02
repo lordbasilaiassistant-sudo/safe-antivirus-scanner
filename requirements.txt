@@ -1,0 +1,10 @@
+# The core scanner runs on the Python standard library alone.
+# These optional packages unlock the higher-accuracy features:
+
+pefile>=2024.8.26   # deep PE behaviour analysis (imports/sections). Without it,
+                    # PE behavioural detection silently no-ops; everything else works.
+pywin32>=306        # faster/native code-signing checks (optional). Authenticode
+                    # verification also works via PowerShell if this is absent.
+
+# Build-only (not needed to run from source):
+# pyinstaller>=6.0  # to build the standalone .exe (see build_exe.ps1)

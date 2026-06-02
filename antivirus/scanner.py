@@ -27,6 +27,8 @@ from typing import Callable, Iterator
 
 from .analyzers import run_analyzers
 from .models import Detection, FileContext, ScanResult
+from .pe_analyze import analyze_pe_file, looks_like_pe
+from .scoring import finalize
 from .signatures import (
     HashSignature,
     PatternSignature,
@@ -54,6 +56,7 @@ class Scanner:
         hashes: list[HashSignature] | None = None,
         max_file_bytes: int | None = None,
         enable_heuristics: bool = True,
+        use_trust: bool = True,
     ):
         if patterns is None or hashes is None:
             default_patterns, default_hashes = load_all_signatures()
@@ -64,6 +67,7 @@ class Scanner:
         self._hash_index = {h.sha256.lower(): h for h in self.hashes}
         self.max_file_bytes = max_file_bytes
         self.enable_heuristics = enable_heuristics
+        self.use_trust = use_trust
         self._max_pattern_len = max((len(s.pattern) for s in self.patterns), default=0)
         self._overlap = max(self._max_pattern_len - 1, 0)
 
@@ -96,6 +100,40 @@ class Scanner:
                 self._scan_file(file_path, result)
         else:
             result.skipped.append((root, "not a file or directory"))
+        if self.enable_heuristics:
+            finalize(result, use_trust=self.use_trust)
+        return result
+
+    def scan_roots(
+        self,
+        roots: list,
+        progress: Callable[[Path], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> ScanResult:
+        """Scan several roots (e.g. a Quick/Full profile) into one result.
+
+        Scoring/trust is applied once at the end across all findings.
+        """
+        result = ScanResult()
+        for root in roots:
+            root = Path(root)
+            if should_stop and should_stop():
+                break
+            if root.is_dir():
+                for file_path in self._walk(root):
+                    if should_stop and should_stop():
+                        break
+                    if progress:
+                        progress(file_path)
+                    self._scan_file(file_path, result)
+            elif root.is_file():
+                if progress:
+                    progress(root)
+                self._scan_file(root, result)
+            else:
+                result.skipped.append((root, "missing"))
+        if self.enable_heuristics:
+            finalize(result, use_trust=self.use_trust)
         return result
 
     # -- internals ----------------------------------------------------------
@@ -173,6 +211,8 @@ class Scanner:
                     sha256=digest,
                 )
                 result.detections.extend(run_analyzers(ctx))
+                if looks_like_pe(head):
+                    result.detections.extend(analyze_pe_file(path, size))
 
             result.files_scanned += 1
             result.bytes_scanned += size

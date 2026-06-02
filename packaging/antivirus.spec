@@ -28,7 +28,12 @@ a = Analysis(
     pathex=[PROJECT_ROOT],
     binaries=[],
     datas=datas,
-    hiddenimports=["antivirus.gui", "antivirus.cli"],
+    hiddenimports=[
+        "antivirus.gui", "antivirus.cli", "antivirus.scanner",
+        "antivirus.analyzers", "antivirus.pe_analyze", "antivirus.scoring",
+        "antivirus.trust", "antivirus.targets", "antivirus.autoruns",
+        "pefile",
+    ],
     hookspath=[],
     runtime_hooks=[],
     excludes=[],

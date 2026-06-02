@@ -21,7 +21,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from . import __version__
+from . import __version__, targets
 from .models import MALWARE, PUP, SUSPICIOUS, TEST, Detection, ScanResult
 from .scanner import Scanner
 
@@ -59,26 +59,35 @@ class App(tk.Tk):
 
         top = ttk.Frame(self)
         top.pack(fill="x", **pad)
+        ttk.Label(top, text="Scan:", font=("Segoe UI", 10, "bold")).pack(side="left")
+        self.quick_btn = ttk.Button(top, text="Quick Scan",
+                                    command=lambda: self._start_scan(targets.QUICK))
+        self.quick_btn.pack(side="left", padx=(8, 4))
+        self.full_btn = ttk.Button(top, text="Full Scan (all drives)",
+                                   command=lambda: self._start_scan(targets.FULL))
+        self.full_btn.pack(side="left", padx=4)
+        self.custom_btn = ttk.Button(top, text="Custom Folder...",
+                                     command=lambda: self._start_scan(targets.CUSTOM))
+        self.custom_btn.pack(side="left", padx=4)
+        self.stop_btn = ttk.Button(top, text="Stop", command=self._stop_scan, state="disabled")
+        self.stop_btn.pack(side="right")
 
-        ttk.Label(top, text="Folder or file:").pack(side="left")
-        self.path_var = tk.StringVar(value=str(Path.home() / "Downloads"))
-        self.path_entry = ttk.Entry(top, textvariable=self.path_var)
-        self.path_entry.pack(side="left", fill="x", expand=True, padx=6)
-        ttk.Button(top, text="Browse...", command=self._browse).pack(side="left")
+        ttk.Label(self,
+                  text="Quick = where malware hides (temp, downloads, app data, startup, "
+                       "autoruns). No folder picking needed.",
+                  foreground="#555").pack(fill="x", padx=8)
 
         opt = ttk.Frame(self)
-        opt.pack(fill="x", padx=8)
+        opt.pack(fill="x", padx=8, pady=(6, 0))
         self.heur_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(opt, text="Heuristics (entropy / packing / macros / scripts)",
+        ttk.Checkbutton(opt, text="Heuristics + behavior + code-signing trust",
                         variable=self.heur_var).pack(side="left")
         ttk.Label(opt, text="Skip files larger than (MiB):").pack(side="left", padx=(16, 4))
         self.maxmb_var = tk.StringVar(value="200")
         ttk.Entry(opt, textvariable=self.maxmb_var, width=7).pack(side="left")
-
-        self.scan_btn = ttk.Button(opt, text="Scan", command=self._start_scan)
-        self.scan_btn.pack(side="right")
-        self.stop_btn = ttk.Button(opt, text="Stop", command=self._stop_scan, state="disabled")
-        self.stop_btn.pack(side="right", padx=6)
+        # Hidden state: the path/label of the active scan, for the worker + quarantine.
+        self.path_var = tk.StringVar(value="")
+        self._active_buttons = [self.quick_btn, self.full_btn, self.custom_btn]
 
         # Progress + status.
         prog = ttk.Frame(self)
@@ -121,25 +130,39 @@ class App(tk.Tk):
 
     # -- actions ------------------------------------------------------------
 
-    def _browse(self):
-        d = filedialog.askdirectory(title="Choose a folder to scan")
-        if d:
-            self.path_var.set(d)
-
-    def _start_scan(self):
+    def _start_scan(self, profile: str):
         if self._worker and self._worker.is_alive():
             return
-        target = self.path_var.get().strip()
-        if not target or not Path(target).exists():
-            messagebox.showerror("Not found", "That path does not exist.")
+
+        if profile == targets.CUSTOM:
+            d = filedialog.askdirectory(title="Choose a folder to scan")
+            if not d:
+                return
+            roots = [Path(d)]
+            label = d
+        elif profile == targets.FULL:
+            if not messagebox.askyesno(
+                    "Full scan",
+                    "A full scan walks every fixed drive and can take a long "
+                    "time. Run it now?"):
+                return
+            roots = targets.resolve_profile(targets.FULL)
+            label = f"Full scan ({len(roots)} locations)"
+        else:
+            roots = targets.resolve_profile(targets.QUICK)
+            label = f"Quick scan ({len(roots)} locations)"
+
+        if not roots:
+            messagebox.showerror("Nothing to scan", "No scannable locations were found.")
             return
+
         try:
             max_mb = float(self.maxmb_var.get())
             max_bytes = int(max_mb * 1024 * 1024) if max_mb > 0 else None
         except ValueError:
             max_bytes = None
 
-        # Reset state.
+        self.path_var.set(label)
         self.tree.delete(*self.tree.get_children())
         self._detections_by_iid.clear()
         self._result = None
@@ -147,26 +170,28 @@ class App(tk.Tk):
         self.quar_btn.configure(state="disabled")
         self.summary_var.set("")
         self.progress.start(12)
-        self.scan_btn.configure(state="disabled")
+        for b in self._active_buttons:
+            b.configure(state="disabled")
         self.stop_btn.configure(state="normal")
+        self.status_var.set(f"Scanning: {label} ... (your files are not modified)")
 
         self._scanner = Scanner(max_file_bytes=max_bytes,
                                 enable_heuristics=self.heur_var.get())
         self._worker = threading.Thread(
-            target=self._scan_worker, args=(target,), daemon=True)
+            target=self._scan_worker, args=(roots,), daemon=True)
         self._worker.start()
 
-    def _scan_worker(self, target: str):
+    def _scan_worker(self, roots: list):
         counter = {"n": 0}
 
         def progress(path: Path):
             counter["n"] += 1
-            if counter["n"] % 25 == 0:
+            if counter["n"] % 50 == 0:
                 self._events.put(("status", f"Scanned {counter['n']:,} files... {path}"))
 
         try:
-            result = self._scanner.scan_path(
-                target, progress=progress,
+            result = self._scanner.scan_roots(
+                roots, progress=progress,
                 should_stop=self._stop_flag.is_set)
             self._events.put(("done", result))
         except Exception as e:  # last-resort guard; a scan must never crash the app
@@ -209,6 +234,7 @@ class App(tk.Tk):
             f"Threats: {len(result.known_bad)}   "
             f"Review: {len(result.suspicious)}   "
             f"Test: {len(result.test_hits)}   "
+            f"Signed/cleared: {result.trusted_suppressed}   "
             f"Skipped: {len(result.skipped)}")
 
         if result.known_bad:
@@ -221,7 +247,8 @@ class App(tk.Tk):
 
     def _finish_ui(self):
         self.progress.stop()
-        self.scan_btn.configure(state="normal")
+        for b in self._active_buttons:
+            b.configure(state="normal")
         self.stop_btn.configure(state="disabled")
 
     def _show_detail(self, _event):
