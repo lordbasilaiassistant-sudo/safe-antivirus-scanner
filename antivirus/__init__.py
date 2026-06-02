@@ -5,4 +5,4 @@ streams them in chunks, never follows symlinks out of the scan root, and never
 deletes anything. Detections are *reported* for human review, not acted on.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

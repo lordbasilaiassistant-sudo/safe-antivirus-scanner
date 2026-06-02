@@ -17,6 +17,10 @@ quarantine/
 samples/
 *.malware
 
+# The full threat-intel feed is large and refreshed locally on demand.
+# (The small "recent" baseline pack IS committed so detection works out of box.)
+antivirus/db/malwarebazaar-full.json
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db

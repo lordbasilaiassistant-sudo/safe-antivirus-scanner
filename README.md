@@ -21,8 +21,12 @@ It comes as a one-file Windows app (`AntivirusScanner.exe`) and a CLI.
     that auto-runs (registry Run keys, Startup, scheduled tasks).
   - **Full Scan** — every fixed drive.
   - **Custom** — pick a folder (the classic behaviour).
-- **Signature detection** — known-bad byte patterns and full-file SHA-256 hashes.
-  Ships with the industry-standard, harmless **EICAR** test signature.
+- **Real malware signatures** — ships with a baseline of real, in-the-wild
+  malware fingerprints from the free **abuse.ch MalwareBazaar** feed (plus the
+  harmless EICAR test signature). Refresh anytime with **Update signatures** in
+  the app, or `antivirus update` / `antivirus update --full` on the CLI.
+- **Optional VirusTotal second opinion** — hash-only, opt-in (`--virustotal`,
+  needs a free `VT_API_KEY`). Sends a fingerprint, never your file.
 - **Behavioural analysis of executables** (via `pefile`) — reads the import table
   and flags capability combinations that characterise malware: **process
   injection**, **keylogging**, **anti-analysis/sandbox-evasion**, credential
@@ -51,9 +55,11 @@ either. Here's the real picture so you can trust the results:
   model keeps false positives low.
 - **Weak at / does not do:** brand-new zero-days with no signature and benign-
   looking imports; fileless / in-memory-only malware (it scans files, not live
-  process memory); and anything needing the cloud-reputation and behavioural-
-  telemetry networks that vendors like Malwarebytes/Defender run. It has no live
-  malware-signature feed bundled (you can add hash/pattern packs — see the DB).
+  process memory); and the proprietary behavioural-telemetry networks that
+  vendors like Malwarebytes/Defender run. Its known-bad coverage is the
+  MalwareBazaar feed (refreshable, and you can add your own packs) plus the
+  optional VirusTotal lookup — broad, but not the full proprietary corpus a paid
+  vendor maintains.
 - **Heuristic `REVIEW` flags are leads, not verdicts.** An unsigned power-user
   tool (e.g. a password recovery utility) can legitimately trip them.
 

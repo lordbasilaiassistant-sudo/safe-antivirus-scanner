@@ -71,6 +71,9 @@ class App(tk.Tk):
         self.custom_btn.pack(side="left", padx=4)
         self.stop_btn = ttk.Button(top, text="Stop", command=self._stop_scan, state="disabled")
         self.stop_btn.pack(side="right")
+        self.update_btn = ttk.Button(top, text="Update signatures",
+                                     command=self._update_signatures)
+        self.update_btn.pack(side="right", padx=6)
 
         ttk.Label(self,
                   text="Quick = where malware hides (temp, downloads, app data, startup, "
@@ -201,6 +204,22 @@ class App(tk.Tk):
         self._stop_flag.set()
         self.status_var.set("Stopping...")
 
+    def _update_signatures(self):
+        if self._worker and self._worker.is_alive():
+            return
+        self.update_btn.configure(state="disabled")
+        self.status_var.set("Downloading latest malware-hash feed (abuse.ch)...")
+
+        def work():
+            try:
+                from .feeds import update_local_db
+                count, _ = update_local_db(full=False)
+                self._events.put(("update_done", count))
+            except Exception as e:
+                self._events.put(("update_done", f"error: {e}"))
+
+        threading.Thread(target=work, daemon=True).start()
+
     def _drain_events(self):
         try:
             while True:
@@ -212,6 +231,17 @@ class App(tk.Tk):
                 elif kind == "error":
                     self._finish_ui()
                     messagebox.showerror("Scan error", payload)
+                elif kind == "update_done":
+                    self.update_btn.configure(state="normal")
+                    if isinstance(payload, int) and payload:
+                        self.status_var.set(
+                            f"Signature DB updated: {payload:,} known malware hashes "
+                            f"loaded for the next scan.")
+                    elif isinstance(payload, int):
+                        self.status_var.set(
+                            "Update failed (offline?). Existing signatures unchanged.")
+                    else:
+                        self.status_var.set(str(payload))
         except queue.Empty:
             pass
         self.after(100, self._drain_events)

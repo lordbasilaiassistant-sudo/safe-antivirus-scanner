@@ -117,6 +117,14 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--quarantine", metavar="DIR", default=None,
                       help="If KNOWN-BAD files are found, offer to MOVE them into DIR "
                            "(asks for confirmation; never deletes; heuristics excluded).")
+    scan.add_argument("--virustotal", action="store_true",
+                      help="Enrich findings with a VirusTotal HASH-only lookup "
+                           "(needs VT_API_KEY; never uploads your files).")
+
+    upd = sub.add_parser("update", help="Download the latest malware-hash feed "
+                                        "(abuse.ch MalwareBazaar) into the signature DB.")
+    upd.add_argument("--full", action="store_true",
+                     help="Fetch the full feed (large) instead of just recent samples.")
     return p
 
 
@@ -141,12 +149,51 @@ def main(argv: list[str] | None = None) -> int:
             result = scanner.scan_path(args.target)
         _print_report(result, label)
 
+        if args.virustotal:
+            _virustotal_enrich(result)
+
         if args.quarantine and result.known_bad:
             _quarantine(result, Path(args.quarantine))
 
         return 1 if result.needs_review else 0
 
+    if args.command == "update":
+        from .feeds import update_local_db
+        print("  Downloading malware-hash feed from abuse.ch MalwareBazaar"
+              f"{' (full)' if args.full else ' (recent)'}...")
+        count, path = update_local_db(full=args.full)
+        if count:
+            print(f"  Imported {count:,} malware hashes -> {path}")
+            print("  These load automatically on the next scan.")
+            return 0
+        print("  Update failed (offline, or the feed was unavailable). "
+              "Existing signatures are unchanged.")
+        return 1
+
     return 0
+
+
+def _virustotal_enrich(result: ScanResult) -> None:
+    from .feeds import virustotal_lookup
+    targets = result.needs_review
+    if not targets:
+        return
+    print(f"\n  VirusTotal (hash-only) lookup for {len(targets)} finding(s)...")
+    seen: dict = {}
+    for d in targets:
+        try:
+            import hashlib
+            digest = hashlib.sha256(Path(d.path).read_bytes()).hexdigest()
+        except OSError:
+            continue
+        rep = seen.get(digest) or virustotal_lookup(digest)
+        seen[digest] = rep
+        if rep.error:
+            print(f"      {d.path.name}: {rep.error}")
+        else:
+            verdict = (f"{rep.malicious}/{rep.total} engines flagged it"
+                       if rep.is_flagged else "clean on VirusTotal")
+            print(f"      {d.path.name}: {verdict}")
 
 
 if __name__ == "__main__":
