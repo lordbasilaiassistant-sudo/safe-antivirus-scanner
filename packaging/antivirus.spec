@@ -20,8 +20,16 @@ db_dir = os.path.join(PROJECT_ROOT, "antivirus", "db")
 datas = [
     (os.path.join(db_dir, f), os.path.join("antivirus", "db"))
     for f in os.listdir(db_dir)
-    if f.endswith((".json", ".md"))
+    if f.endswith((".json", ".md")) and f != "malwarebazaar-full.json"
 ]
+# Bundle YARA rules into antivirus/rules inside the exe.
+rules_dir = os.path.join(PROJECT_ROOT, "antivirus", "rules")
+if os.path.isdir(rules_dir):
+    datas += [
+        (os.path.join(rules_dir, f), os.path.join("antivirus", "rules"))
+        for f in os.listdir(rules_dir)
+        if f.endswith((".yar", ".yara"))
+    ]
 
 a = Analysis(
     [os.path.join(SPECPATH, "entry_gui.py")],
@@ -32,7 +40,7 @@ a = Analysis(
         "antivirus.gui", "antivirus.cli", "antivirus.scanner",
         "antivirus.analyzers", "antivirus.pe_analyze", "antivirus.scoring",
         "antivirus.trust", "antivirus.targets", "antivirus.autoruns",
-        "antivirus.feeds", "pefile",
+        "antivirus.feeds", "antivirus.yara_scan", "pefile", "yara",
     ],
     hookspath=[],
     runtime_hooks=[],

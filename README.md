@@ -25,6 +25,10 @@ It comes as a one-file Windows app (`AntivirusScanner.exe`) and a CLI.
   malware fingerprints from the free **abuse.ch MalwareBazaar** feed (plus the
   harmless EICAR test signature). Refresh anytime with **Update signatures** in
   the app, or `antivirus update` / `antivirus update --full` on the CLI.
+- **YARA family rules** — pattern/structure rules that catch whole *families* of
+  malware (so a brand-new variant still matches), including downloaders, malicious
+  Office macros, registry-persistence, and embedded-PE droppers. Drop more `.yar`
+  files (e.g. the big free community sets) into `antivirus/rules/` to expand.
 - **Optional VirusTotal second opinion** — hash-only, opt-in (`--virustotal`,
   needs a free `VT_API_KEY`). Sends a fingerprint, never your file.
 - **Behavioural analysis of executables** (via `pefile`) — reads the import table

@@ -29,6 +29,7 @@ from .analyzers import run_analyzers
 from .models import Detection, FileContext, ScanResult
 from .pe_analyze import analyze_pe_file, looks_like_pe
 from .scoring import finalize
+from .yara_scan import YaraEngine
 from .signatures import (
     HashSignature,
     PatternSignature,
@@ -57,6 +58,7 @@ class Scanner:
         max_file_bytes: int | None = None,
         enable_heuristics: bool = True,
         use_trust: bool = True,
+        enable_yara: bool = True,
     ):
         if patterns is None or hashes is None:
             default_patterns, default_hashes = load_all_signatures()
@@ -68,6 +70,9 @@ class Scanner:
         self.max_file_bytes = max_file_bytes
         self.enable_heuristics = enable_heuristics
         self.use_trust = use_trust
+        self._yara = YaraEngine() if enable_yara else None
+        if self._yara is not None and not self._yara.available:
+            self._yara = None
         self._max_pattern_len = max((len(s.pattern) for s in self.patterns), default=0)
         self._overlap = max(self._max_pattern_len - 1, 0)
 
@@ -213,6 +218,8 @@ class Scanner:
                 result.detections.extend(run_analyzers(ctx))
                 if looks_like_pe(head):
                     result.detections.extend(analyze_pe_file(path, size))
+                if self._yara is not None:
+                    result.detections.extend(self._yara.scan_file(path))
 
             result.files_scanned += 1
             result.bytes_scanned += size

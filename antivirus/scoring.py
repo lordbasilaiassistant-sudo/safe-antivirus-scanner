@@ -69,10 +69,12 @@ def finalize(result: ScanResult, use_trust: bool = True) -> ScanResult:
 
     Adds result.trusted_suppressed (count of files cleared by a valid signature).
     """
-    # Split hard signatures (always kept) from heuristic findings (scored).
-    hard = [d for d in result.detections
-            if d.severity in (MALWARE, TEST) and d.method in ("hash", "pattern")]
-    heuristics = [d for d in result.detections if d not in hard]
+    # Split high-confidence findings (always kept) from heuristic ones (scored).
+    # Anything classified malware/test -- a known signature OR a malware-severity
+    # YARA family rule -- is high-confidence by definition. SUSPICIOUS findings
+    # (entropy, PE behaviour, suspicious YARA rules) are the ones we score.
+    hard = [d for d in result.detections if d.severity in (MALWARE, TEST)]
+    heuristics = [d for d in result.detections if d.severity not in (MALWARE, TEST)]
 
     # Group heuristic findings per file.
     by_file: dict[Path, list[Detection]] = {}
