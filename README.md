@@ -1,8 +1,12 @@
 # Antivirus Scanner
 
-A small, **safe-by-design**, open-source antivirus scanner for Windows. It scans
-a folder, reports what it finds for **your review**, and never modifies your
-files unless you explicitly tell it to.
+**A best-in-class _free, open-source, safe-by-design_ on-demand virus scanner for
+Windows.** One click scans where malware actually hides, checks it against 1M+
+real malware signatures, YARA family rules, and behavioural analysis — and
+**reports everything for your review without ever modifying your files.**
+
+Built to run **alongside** Microsoft Defender as a fast, transparent second
+opinion — not a background service that can slow down or break your PC.
 
 It comes as a one-file Windows app (`AntivirusScanner.exe`) and a CLI.
 
@@ -10,6 +14,20 @@ It comes as a one-file Windows app (`AntivirusScanner.exe`) and a CLI.
 > your files. The only action that ever moves a file is an opt-in, confirmed
 > *quarantine* that **moves** (never deletes) known-bad files. See
 > [`SECURITY.md`](SECURITY.md).
+
+### Why this one
+
+- **Safe first.** No kernel driver, no always-on background hooks — the class of
+  software that *breaks* PCs. Read-only by design, with the guarantee covered by
+  automated tests.
+- **Transparent.** Every line is open source and auditable. No telemetry, no
+  account, no phone-home. A normal scan never touches the network.
+- **Real detection, no marketing math.** 1M+ in-the-wild malware hashes, YARA
+  family rules, PE behavioural analysis, and code-signing trust — combined by a
+  confidence-scoring model that keeps false positives low.
+- **No folder-picking.** Quick / Full / Custom one-click profiles.
+- **Honest about limits.** It won't claim to catch *everything* (nothing does).
+  It's a sharp triage scanner, and it tells you what it can't see.
 
 ---
 
